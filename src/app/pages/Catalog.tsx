@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -13,19 +13,43 @@ import {
 } from '../components/ui/select';
 import { Search, Filter, Eye, Heart, MessageCircle } from 'lucide-react';
 import { mockResources, type ResourceCategory, type ResourceType } from '../data/mockData';
+import { getCategoryColor } from '../../utils/categoryStyles';
 
 export default function Catalog() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory | 'all'>('all');
   const [selectedType, setSelectedType] = useState<ResourceType | 'all'>('all');
 
-  const filteredResources = mockResources.filter((resource) => {
-    const matchesSearch = resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+// AJOUT : État pour stocker les vraies ressources
+  const [resources, setResources] = useState<any[]>([]);
+
+  useEffect(() => {
+  const fetchResources = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/resources');
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        // C'est ici qu'on cible le tableau dans la structure MongoDB
+        // On essaie d'abord result.data.resources, sinon result.data
+        const actualData = result.data.resources || result.data;
+        setResources(actualData);
+      }
+    } catch (error) {
+      console.error("Erreur catalogue :", error);
+      setResources([]); 
+    }
+  };
+  fetchResources();
+}, []);
+
+const filteredResources = resources.filter((resource) => { 
+     const matchesSearch = resource.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       resource.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      resource.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      resource.tags?.some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    const matchesCategory = selectedCategory === 'all' || resource.category === selectedCategory;
-    const matchesType = selectedType === 'all' || resource.type === selectedType;
+    const matchesCategory = selectedCategory === 'all' || resource.categorie === selectedCategory;
+    const matchesType = selectedType === 'all' || resource.typeRessource === selectedType;
 
     return matchesSearch && matchesCategory && matchesType;
   });
@@ -49,17 +73,6 @@ export default function Catalog() {
       outil: 'Outil',
     };
     return labels[type] || type;
-  };
-
-  const getCategoryColor = (category: ResourceCategory) => {
-    const colors: Record<ResourceCategory, string> = {
-      famille: 'bg-pink-100 text-pink-700',
-      amis: 'bg-yellow-100 text-yellow-700',
-      collegues: 'bg-blue-100 text-blue-700',
-      voisins: 'bg-green-100 text-green-700',
-      communaute: 'bg-purple-100 text-purple-700',
-    };
-    return colors[category];
   };
 
   const getTypeIcon = (type: ResourceType) => {
@@ -165,56 +178,48 @@ export default function Catalog() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredResources.map((resource) => (
-              <Link key={resource.id} to={`/ressource/${resource.id}`}>
-                <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                  <CardHeader>
-                    <div className="flex items-start justify-between mb-2">
-                      <Badge className={getCategoryColor(resource.category)}>
-                        {getCategoryLabel(resource.category)}
+          {resources.map((resource) => (
+            <Link key={resource._id} to={`/ressource/${resource._id}`}>
+              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader>
+                  <div className="flex items-start justify-between mb-2">
+                    {/* Sécurité sur la catégorie : on affiche le nom si c'est un objet, sinon rien */}
+                    <Badge className={getCategoryColor(resource.categorie?.name || 'famille')}>
+                      {resource.categorie?.name || 'Ressource'}
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-lg leading-tight">{resource.title}</CardTitle>
+                </CardHeader>
+                
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-3">
+                    {resource.description}
+                  </p>
+
+                  {/* PROTECTION : On vérifie si tags existe avant de faire slice */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {(resource.tags || []).slice(0, 3).map((tag: string) => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
                       </Badge>
-                      <span className="text-2xl">{getTypeIcon(resource.type)}</span>
-                    </div>
-                    <CardTitle className="text-lg leading-tight">{resource.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-3">
-                      {resource.description}
-                    </p>
+                    ))}
+                  </div>
 
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {resource.tags.slice(0, 3).map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
+                  {/* PROTECTION : Valeurs par défaut (0) pour les stats */}
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <Eye className="h-3 w-3" />
+                      <span>{(resource.views || 0).toLocaleString()}</span>
                     </div>
-
-                    {/* Stats */}
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <div className="flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        <span>{resource.views.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Heart className="h-3 w-3" />
-                        <span>{resource.likes}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MessageCircle className="h-3 w-3" />
-                        <span>{resource.commentsCount}</span>
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <Heart className="h-3 w-3" />
+                      <span>{(resource.likes || 0)}</span>
                     </div>
-
-                    {/* Author */}
-                    <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-                      Par {resource.author} • {new Date(resource.createdAt).toLocaleDateString('fr-FR')}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
           </div>
         )}
       </div>

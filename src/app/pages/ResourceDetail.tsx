@@ -14,6 +14,7 @@ import {
   Bookmark,
   BookmarkCheck,
 } from 'lucide-react';
+
 import {
   mockResources,
   mockComments,
@@ -23,23 +24,61 @@ import {
   type ResourceCategory,
   type ResourceType,
 } from '../data/mockData';
+
+
 import { toast } from 'sonner';
 
 export default function ResourceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+//Alors on créer des constantes vides 
+  const [resource, setResource] = useState<any>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Le stats d'avant 
   const [newComment, setNewComment] = useState('');
   const [isLiked, setIsLiked] = useState(false);
   const [isFav, setIsFav] = useState(false);
 
-  const resource = mockResources.find((r) => r.id === id);
-  const comments = mockComments.filter((c) => c.resourceId === id);
-
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        const resResponse = await fetch(`http://localhost:5000/api/resources/${id}`);
+        const resData = await resResponse.json();
+
+        // On extrait la ressource de l'enveloppe "data"
+        if (resData.status === 'success') {
+          setResource(resData.data.resource || resData.data); 
+        }
+
+        // Même chose pour les commentaires
+        const commentsResponse = await fetch(`http://localhost:5000/api/comments/ressource/${id}`);
+        const commentsData = await commentsResponse.json();
+        
+        if (commentsData.status === 'success') {
+          setComments(commentsData.data.comments || commentsData.data || []);
+        }
+      } catch (error) {
+        console.error('Erreur :', error);
+      } finally {
+  // INDISPENSABLE : même en cas d'erreur, on arrête le loading
+  setLoading(false); 
+}
+    };
+
+    if (id) loadData();
+  }, [id]);
+
+
+  if (loading) return <div>Chargement en cours...</div>;
+
+  /*useEffect(() => {
     if (id) {
       setIsFav(isFavorite(id));
     }
-  }, [id]);
+  }, [id]);*/
 
   if (!resource) {
     return (
@@ -140,8 +179,8 @@ export default function ResourceDetail() {
             {/* Header */}
             <div className="mb-6">
               <div className="flex flex-wrap items-center gap-2 mb-4">
-                <Badge className={getCategoryColor(resource.category)}>
-                  {getCategoryLabel(resource.category)}
+                <Badge className={getCategoryColor(resource.categorie?.name || 'famille')}>
+                  {resource.categorie?.name || 'Général'}
                 </Badge>
                 <Badge variant="outline">{getTypeLabel(resource.type)}</Badge>
               </div>
@@ -162,7 +201,7 @@ export default function ResourceDetail() {
               <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
                   <Eye className="h-4 w-4" />
-                  <span>{resource.views.toLocaleString()} vues</span>
+                  <span>{(resource.views || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Heart className="h-4 w-4" />
@@ -217,11 +256,12 @@ export default function ResourceDetail() {
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2 mb-6">
-              {resource.tags.map((tag) => (
+              { (resource.tags || []).map((tag: string) => (
                 <Badge key={tag} variant="secondary">
                   #{tag}
                 </Badge>
               ))}
+              
             </div>
 
             <Separator className="my-6" />
@@ -232,7 +272,7 @@ export default function ResourceDetail() {
               <p>{resource.content}</p>
               <p className="text-gray-600">
                 Ce contenu détaillé vous guide étape par étape pour mettre en pratique
-                les conseils et améliorer vos relations {getCategoryLabel(resource.category).toLowerCase()}.
+                les conseils et améliorer vos relations {resource.categorie?.name?.toLowerCase() || 'générales'}.
               </p>
             </div>
           </CardContent>
@@ -276,28 +316,20 @@ export default function ResourceDetail() {
 
             {/* Comments List */}
             <div className="space-y-4">
-              {comments.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  Aucun commentaire pour le moment. Soyez le premier à partager votre avis !
-                </p>
-              ) : (
-                comments.map((comment) => (
-                  <div key={comment.id} className="border-l-4 border-blue-200 pl-4 py-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-semibold text-sm">{comment.userName}</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(comment.createdAt).toLocaleDateString('fr-FR')}
-                      </span>
-                      {comment.isModerated && (
-                        <Badge variant="outline" className="text-xs">
-                          Vérifié
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-700">{comment.content}</p>
+              {comments.map((comment) => (
+                <div key={comment._id} className="border-l-4 border-blue-200 pl-4 py-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    {/* On affiche l'ID de l'auteur car le nom n'est pas dans l'objet comment */}
+                    <span className="font-semibold text-sm">Utilisateur {comment.authorId.slice(-4)}</span>
+                    <span className="text-xs text-gray-500">
+                      {/* On utilise .date car c'est le nom dans ta base */}
+                      {new Date(comment.date).toLocaleDateString('fr-FR')}
+                    </span>
                   </div>
-                ))
-              )}
+                  <p className="text-sm text-gray-700">{comment.content}</p>
+                </div>
+              ))}
+
             </div>
           </CardContent>
         </Card>
