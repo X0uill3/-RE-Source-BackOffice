@@ -1,5 +1,5 @@
 import { useNavigate, Link } from 'react-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -14,42 +14,46 @@ import {
   LogOut,
   Edit,
 } from 'lucide-react';
+
+// 1. On supprime currentUser et logout des mockData
 import {
-  currentUser,
-  logout,
   mockResources,
-  mockFavorites,
   isFavorite,
   type ResourceCategory,
 } from '../data/mockData';
 import { toast } from 'sonner';
 
+// 2. On importe notre vraie mémoire globale
+import { useAuthStore } from '../../store/authStore';
+
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(currentUser);
+  
+  // 3. On récupère le vrai utilisateur et la vraie fonction de déconnexion
+  const { user, logout } = useAuthStore();
 
   useEffect(() => {
-    if (!currentUser) {
+    // Si l'utilisateur n'est pas dans le store, on le renvoie au login
+    if (!user) {
       toast.error('Vous devez être connecté pour accéder à cette page');
       navigate('/connexion');
-    } else {
-      setUser(currentUser);
     }
-  }, [navigate]);
+  }, [user, navigate]);
 
+  // Sécurité anti-crash : si pas de user, on affiche un écran vide le temps de la redirection
   if (!user) {
     return null;
   }
 
   const handleLogout = () => {
-    logout();
+    logout(); // Ceci va vider le localStorage proprement
     toast.success('Déconnexion réussie');
     navigate('/');
-    window.location.reload();
   };
 
+  // Note: On garde les mockResources temporairement pour l'affichage visuel
   const favoriteResources = mockResources.filter((r) => isFavorite(r.id));
-  const myContributions = mockResources.filter((r) => r.authorId === user.id);
+  const myContributions = mockResources.filter((r) => r.authorId === user._id); // MongoDB utilise _id
 
   const getCategoryColor = (category: ResourceCategory) => {
     const colors: Record<ResourceCategory, string> = {
@@ -82,12 +86,14 @@ export default function Dashboard() {
             <div>
               <h1 className="text-3xl md:text-4xl font-bold mb-2">Tableau de bord</h1>
               <p className="text-gray-600">
-                Bienvenue, <span className="font-semibold">{user.name}</span> !
+                {/* 4. On utilise firstname au lieu de name */}
+                Bienvenue, <span className="font-semibold">{user.firstname}</span> !
               </p>
               <Badge variant="outline" className="mt-2">
-                {user.role === 'citoyen' && 'Citoyen'}
-                {user.role === 'moderateur' && 'Modérateur'}
-                {user.role === 'admin' && 'Administrateur'}
+                {/* 5. On utilise les rôles tels qu'ils sont dans ton backend */}
+                {user.role === 'USER' && 'Citoyen'}
+                {user.role === 'MODERATOR' && 'Modérateur'}
+                {user.role === 'ADMIN' && 'Administrateur'}
               </Badge>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">

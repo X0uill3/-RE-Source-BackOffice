@@ -5,24 +5,33 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Users } from 'lucide-react';
-import { login } from '../data/mockData';
 import { toast } from 'sonner';
+// Ajoutez cette ligne avec vos autres imports
+import { useAuthStore } from '../../store/authStore';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { login, isLoading } = useAuthStore();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const user = login(email, password);
-
-    if (user) {
-      toast.success(`Bienvenue, ${user.name} !`);
+    try {
+      // On appelle la fonction du store. 
+      // Elle va faire la requête API et stocker le token toute seule.
+      await login(email, password);
+      
+      // Si on arrive ici, c'est que le login a réussi (pas d'erreur jetée)
+      toast.success('Connexion réussie !');
       navigate('/tableau-de-bord');
-    } else {
-      toast.error('Email ou mot de passe incorrect');
+      
+    } catch (error: any) {
+      // Si le store rencontre une erreur (mauvais mot de passe, serveur down...)
+      // Il jette une erreur qu'on attrape ici pour l'afficher
+      toast.error(error.message);
     }
   };
 
