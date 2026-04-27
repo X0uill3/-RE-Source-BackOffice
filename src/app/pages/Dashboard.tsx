@@ -1,5 +1,5 @@
 import { useNavigate, Link } from 'react-router';
-import { useEffect } from 'react';
+import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -25,36 +25,53 @@ import { toast } from 'sonner';
 
 // 2. On importe notre vraie mémoire globale
 import { useAuthStore } from '../../store/authStore';
-
+import { useMyContributions } from '../../hooks/useRessource';
+import { useMyFavorites } from '../../hooks/useInteraction'; 
 export default function Dashboard() {
   const navigate = useNavigate();
   
-  // 3. On récupère le vrai utilisateur et la vraie fonction de déconnexion
+  // 1. On récupère notre utilisateur depuis Zustand
   const { user, logout } = useAuthStore();
 
+  // 2. LA MAGIE REACT QUERY : On appelle notre nouveau hook !
+  // Il gère tout seul la requête, le stockage, et nous dit s'il est en train de charger (isLoading)
+  const { 
+    data: myContributions = [], 
+    isLoading: isLoadingContributions 
+  } = useMyContributions(user?._id);
+
+  const { 
+    data: favoriteResources = [], 
+    isLoading: isLoadingFavorites 
+  } = useMyFavorites(user?._id);
+
+  // Sécurité de connexion
   useEffect(() => {
-    // Si l'utilisateur n'est pas dans le store, on le renvoie au login
     if (!user) {
       toast.error('Vous devez être connecté pour accéder à cette page');
       navigate('/connexion');
     }
   }, [user, navigate]);
 
-  // Sécurité anti-crash : si pas de user, on affiche un écran vide le temps de la redirection
-  if (!user) {
-    return null;
+ if (!user) {
+    return null; // Évite les crashs pendant la redirection
   }
 
   const handleLogout = () => {
-    logout(); // Ceci va vider le localStorage proprement
+    logout();
     toast.success('Déconnexion réussie');
     navigate('/');
   };
-
-  // Note: On garde les mockResources temporairement pour l'affichage visuel
-  const favoriteResources = mockResources.filter((r) => isFavorite(r.id));
-  const myContributions = mockResources.filter((r) => r.authorId === user._id); // MongoDB utilise _id
-
+  
+  // 4. Un petit écran de chargement global pour faire propre
+  if (isLoadingContributions || isLoadingFavorites) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 font-medium animate-pulse">Chargement de votre espace personnel...</p>
+      </div>
+    );
+  }
+  
   const getCategoryColor = (category: ResourceCategory) => {
     const colors: Record<ResourceCategory, string> = {
       famille: 'bg-pink-100 text-pink-700',
@@ -148,7 +165,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {myContributions.reduce((sum, r) => sum + r.views, 0).toLocaleString()}
+                {myContributions.reduce((sum: number, r: { views: number; }) => sum + r.views, 0).toLocaleString()}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 Vues sur vos ressources
@@ -221,15 +238,15 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {favoriteResources.map((resource) => (
+                    {favoriteResources.map((resource: { id: Key | null | undefined; category: string; title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; views: { toLocaleString: () => string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }; commentsCount: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }) => (
                       <div
                         key={resource.id}
                         className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
                       >
                         <div className="flex-1 mb-3 sm:mb-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <Badge className={getCategoryColor(resource.category)}>
-                              {getCategoryLabel(resource.category)}
+                            <Badge className={getCategoryColor(resource.category as ResourceCategory)}>
+                              {getCategoryLabel(resource.category as ResourceCategory)}
                             </Badge>
                           </div>
                           <Link to={`/ressource/${resource.id}`}>
@@ -280,15 +297,15 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {myContributions.map((resource) => (
+                    {myContributions.map((resource: { id: Key | null | undefined; category: string; isPublic: any; title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; views: { toLocaleString: () => string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }; likes: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; commentsCount: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }) => (
                       <div
                         key={resource.id}
                         className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-gray-200 rounded-lg"
                       >
                         <div className="flex-1 mb-3 sm:mb-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <Badge className={getCategoryColor(resource.category)}>
-                              {getCategoryLabel(resource.category)}
+                            <Badge className={getCategoryColor(resource.category as ResourceCategory)}>
+                              {getCategoryLabel(resource.category as ResourceCategory)}
                             </Badge>
                             {resource.isPublic ? (
                               <Badge variant="outline">Public</Badge>
