@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -23,60 +23,84 @@ import {
   Search,
   Eye,
 } from 'lucide-react';
-import { currentUser, mockResources, mockUsers, mockComments } from '../data/mockData';
 import { toast } from 'sonner';
-import { Link } from 'react-router';
+
+import { useAuthStore } from '../../store/authStore';
+import { useMyContributions } from '../../hooks/useRessource';
+import { useComments } from '../../hooks/useComment';
+import { useUsers, useDeleteUser, useModerateComment, useToggleResource } from '../../hooks/useAdmin';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(currentUser);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    if (!currentUser) {
-      toast.error('Vous devez être connecté pour accéder à cette page');
-      navigate('/connexion');
-    } else if (currentUser.role !== 'admin' && currentUser.role !== 'moderateur') {
-      toast.error('Accès refusé : vous devez être administrateur ou modérateur');
-      navigate('/');
-    } else {
-      setUser(currentUser);
-    }
-  }, [navigate]);
+  // ✅ Vrai utilisateur depuis Zustand
+  const { user } = useAuthStore();
 
-  if (!user || (user.role !== 'admin' && user.role !== 'moderateur')) {
+  // ✅ Vrais hooks de données
+  const { data: resources = [], isLoading: isLoadingResources } = useMyContributions(user?.id || '');
+  const { data: users = [], isLoading: isLoadingUsers } = useUsers();
+  const { data: comments = [], isLoading: isLoadingComments } = useComments('');
+
+  const deleteUser = useDeleteUser();
+  const moderateComment = useModerateComment();
+  const toggleResource = useToggleResource();
+
+  // ✅ Vrai garde de connexion et de rôle
+  if (!user) {
+    toast.error('Vous devez être connecté pour accéder à cette page');
+    navigate('/connexion');
     return null;
   }
 
-  const pendingComments = mockComments.filter((c) => !c.isModerated);
-  const publicResources = mockResources.filter((r) => r.isPublic);
+  if (user.role !== 'ADMIN' && user.role !== 'MODERATOR') {
+    toast.error('Accès refusé : vous devez être administrateur ou modérateur');
+    navigate('/');
+    return null;
+  }
+
+  if (isLoadingResources || isLoadingUsers || isLoadingComments) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 animate-pulse">Chargement du panel admin...</p>
+      </div>
+    );
+  }
+
+  const pendingComments = comments.filter((c: any) => !c.isModerated);
+  const publicResources = resources.filter((r: any) => r.isPublic);
 
   const handleApproveComment = (commentId: string) => {
+    moderateComment.mutate({ commentId, action: 'approve' });
     toast.success('Commentaire approuvé');
   };
 
   const handleRejectComment = (commentId: string) => {
+    moderateComment.mutate({ commentId, action: 'reject' });
     toast.success('Commentaire rejeté');
   };
 
   const handleToggleResource = (resourceId: string, isPublic: boolean) => {
+    toggleResource.mutate({ resourceId, isPublic });
     toast.success(isPublic ? 'Ressource dépubliée' : 'Ressource publiée');
   };
 
   const handleDeleteUser = (userId: string) => {
+    deleteUser.mutate(userId);
     toast.success('Utilisateur supprimé');
   };
 
-  const filteredUsers = mockUsers.filter(
-    (u) =>
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredUsers = users.filter(
+    (u: any) =>
+      u.firstname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.lastname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredResources = publicResources.filter(
-    (r) =>
-      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.author.toLowerCase().includes(searchQuery.toLowerCase())
+    (r: any) =>
+      r.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.author?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -88,11 +112,9 @@ export default function AdminPanel() {
             <Shield className="h-8 w-8 text-blue-600" />
             <h1 className="text-3xl md:text-4xl font-bold">Panel d'administration</h1>
           </div>
-          <p className="text-gray-600">
-            Modération des contenus et gestion des utilisateurs
-          </p>
+          <p className="text-gray-600">Modération des contenus et gestion des utilisateurs</p>
           <Badge variant="outline" className="mt-2">
-            {user.role === 'admin' ? 'Administrateur' : 'Modérateur'}
+            {user.role === 'ADMIN' ? 'Administrateur' : 'Modérateur'}
           </Badge>
         </div>
       </div>
@@ -106,7 +128,7 @@ export default function AdminPanel() {
               <Users className="h-4 w-4 text-gray-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockUsers.length}</div>
+              <div className="text-2xl font-bold">{users.length}</div>
             </CardContent>
           </Card>
 
@@ -126,7 +148,7 @@ export default function AdminPanel() {
               <MessageCircle className="h-4 w-4 text-gray-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockComments.length}</div>
+              <div className="text-2xl font-bold">{comments.length}</div>
             </CardContent>
           </Card>
 
@@ -136,9 +158,7 @@ export default function AdminPanel() {
               <Shield className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {pendingComments.length}
-              </div>
+              <div className="text-2xl font-bold text-orange-600">{pendingComments.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -165,7 +185,7 @@ export default function AdminPanel() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Comments Moderation */}
+          {/* Modération des commentaires */}
           <TabsContent value="comments">
             <Card>
               <CardHeader>
@@ -179,27 +199,26 @@ export default function AdminPanel() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {pendingComments.map((comment) => {
-                      const resource = mockResources.find((r) => r.id === comment.resourceId);
+                    {pendingComments.map((comment: any) => {
+                      const resource = resources.find((r: any) => r._id === comment.ressourceId);
                       return (
-                        <div
-                          key={comment.id}
-                          className="border border-gray-200 rounded-lg p-4"
-                        >
+                        <div key={comment._id} className="border border-gray-200 rounded-lg p-4">
                           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <span className="font-semibold">{comment.userName}</span>
+                                <span className="font-semibold">
+                                  Utilisateur {comment.authorId?.slice(-4)}
+                                </span>
                                 <span className="text-xs text-gray-500">
-                                  {new Date(comment.createdAt).toLocaleDateString('fr-FR')}
+                                  {new Date(comment.date).toLocaleDateString('fr-FR')}
                                 </span>
                               </div>
                               <p className="text-sm text-gray-700 mb-3">{comment.content}</p>
                               {resource && (
-                                <Link to={`/ressource/${resource.id}`}>
+                                <Link to={`/ressource/${resource._id}`}>
                                   <Button variant="link" size="sm" className="p-0 h-auto">
                                     <Eye className="h-3 w-3 mr-1" />
-                                    Voir la ressource: {resource.title}
+                                    Voir la ressource : {resource.title}
                                   </Button>
                                 </Link>
                               )}
@@ -207,7 +226,8 @@ export default function AdminPanel() {
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
-                                onClick={() => handleApproveComment(comment.id)}
+                                onClick={() => handleApproveComment(comment._id)}
+                                disabled={moderateComment.isPending}
                               >
                                 <CheckCircle className="h-4 w-4 mr-2" />
                                 Approuver
@@ -215,7 +235,8 @@ export default function AdminPanel() {
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => handleRejectComment(comment.id)}
+                                onClick={() => handleRejectComment(comment._id)}
+                                disabled={moderateComment.isPending}
                               >
                                 <XCircle className="h-4 w-4 mr-2" />
                                 Rejeter
@@ -231,7 +252,7 @@ export default function AdminPanel() {
             </Card>
           </TabsContent>
 
-          {/* Resources Management */}
+          {/* Gestion des ressources */}
           <TabsContent value="resources">
             <Card>
               <CardHeader>
@@ -262,16 +283,18 @@ export default function AdminPanel() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredResources.map((resource) => (
-                        <TableRow key={resource.id}>
+                      {filteredResources.map((resource: any) => (
+                        <TableRow key={resource._id}>
                           <TableCell className="font-medium max-w-xs truncate">
                             {resource.title}
                           </TableCell>
                           <TableCell>{resource.author}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{resource.category}</Badge>
+                            <Badge variant="outline">
+                              {resource.categorie?.name || resource.category}
+                            </Badge>
                           </TableCell>
-                          <TableCell>{resource.views.toLocaleString()}</TableCell>
+                          <TableCell>{(resource.views || 0).toLocaleString()}</TableCell>
                           <TableCell>
                             <Badge variant={resource.isPublic ? 'default' : 'secondary'}>
                               {resource.isPublic ? 'Public' : 'Privé'}
@@ -279,7 +302,7 @@ export default function AdminPanel() {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
-                              <Link to={`/ressource/${resource.id}`}>
+                              <Link to={`/ressource/${resource._id}`}>
                                 <Button size="sm" variant="outline">
                                   <Eye className="h-4 w-4" />
                                 </Button>
@@ -287,9 +310,8 @@ export default function AdminPanel() {
                               <Button
                                 size="sm"
                                 variant={resource.isPublic ? 'destructive' : 'default'}
-                                onClick={() =>
-                                  handleToggleResource(resource.id, resource.isPublic)
-                                }
+                                onClick={() => handleToggleResource(resource._id, resource.isPublic)}
+                                disabled={toggleResource.isPending}
                               >
                                 {resource.isPublic ? 'Dépublier' : 'Publier'}
                               </Button>
@@ -304,7 +326,7 @@ export default function AdminPanel() {
             </Card>
           </TabsContent>
 
-          {/* Users Management */}
+          {/* Gestion des utilisateurs */}
           <TabsContent value="users">
             <Card>
               <CardHeader>
@@ -334,32 +356,39 @@ export default function AdminPanel() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredUsers.map((u) => (
-                        <TableRow key={u.id}>
-                          <TableCell className="font-medium">{u.name}</TableCell>
+                      {filteredUsers.map((u: any) => (
+                        <TableRow key={u._id}>
+                          <TableCell className="font-medium">
+                            {u.firstname} {u.lastname}
+                          </TableCell>
                           <TableCell>{u.email}</TableCell>
                           <TableCell>
                             <Badge
                               variant={
-                                u.role === 'admin'
+                                u.role === 'ADMIN'
                                   ? 'destructive'
-                                  : u.role === 'moderateur'
+                                  : u.role === 'MODERATOR'
                                   ? 'default'
                                   : 'secondary'
                               }
                             >
-                              {u.role}
+                              {u.role === 'ADMIN'
+                                ? 'Administrateur'
+                                : u.role === 'MODERATOR'
+                                ? 'Modérateur'
+                                : 'Citoyen'}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {new Date(u.joinedAt).toLocaleDateString('fr-FR')}
+                            {new Date(u.createdAt).toLocaleDateString('fr-FR')}
                           </TableCell>
                           <TableCell>
-                            {user.role === 'admin' && u.id !== user.id && (
+                            {user.role === 'ADMIN' && u._id !== user._id && (
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => handleDeleteUser(u.id)}
+                                onClick={() => handleDeleteUser(u._id)}
+                                disabled={deleteUser.isPending}
                               >
                                 Supprimer
                               </Button>

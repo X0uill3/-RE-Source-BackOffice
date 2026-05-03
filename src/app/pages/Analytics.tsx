@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import {
@@ -17,45 +16,72 @@ import {
   Legend,
 } from 'recharts';
 import { TrendingUp, Users, Eye, MessageCircle, FileText } from 'lucide-react';
-import { currentUser, mockStats } from '../data/mockData';
 import { toast } from 'sonner';
+
+import { useAuthStore } from '../../store/authStore';
+import { useMyContributions } from '../../hooks/useRessource';
+import { useUsers } from '../../hooks/useAdmin';
+import { useComments } from '../../hooks/useComment';
+
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 export default function Analytics() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(currentUser);
 
-  useEffect(() => {
-    if (!currentUser) {
-      toast.error('Vous devez être connecté pour accéder à cette page');
-      navigate('/connexion');
-    } else if (currentUser.role !== 'admin') {
-      toast.error('Accès refusé : vous devez être administrateur');
-      navigate('/');
-    } else {
-      setUser(currentUser);
-    }
-  }, [navigate]);
+  // ✅ Vrai utilisateur depuis Zustand
+  const { user } = useAuthStore();
 
-  if (!user || user.role !== 'admin') {
+  // ✅ Données réelles pour les KPIs
+  const { data: resources = [] } = useMyContributions(user?.id || '');
+  const { data: users = [] } = useUsers();
+  const { data: comments = [] } = useComments('');
+
+  // ✅ Vrai garde de connexion et de rôle
+  if (!user) {
+    toast.error('Vous devez être connecté pour accéder à cette page');
+    navigate('/connexion');
     return null;
   }
 
-  const categoryData = Object.entries(mockStats.resourcesByCategory).map(([key, value]) => ({
-    name: key.charAt(0).toUpperCase() + key.slice(1),
-    value: value,
-  }));
+  if (user.role !== 'ADMIN') {
+    toast.error('Accès refusé : vous devez être administrateur');
+    navigate('/');
+    return null;
+  }
 
-  const typeData = Object.entries(mockStats.resourcesByType).map(([key, value]) => ({
-    name: key.charAt(0).toUpperCase() + key.slice(1),
-    value: value,
-  }));
+  // Calcul des stats depuis les vraies données
+  const totalViews = resources.reduce((sum: number, r: any) => sum + (r.views || 0), 0);
 
-  const roleData = Object.entries(mockStats.usersByRole).map(([key, value]) => ({
-    name: key.charAt(0).toUpperCase() + key.slice(1),
-    value: value,
-  }));
+  // Distribution par catégorie
+  const categoryMap: Record<string, number> = {};
+  resources.forEach((r: any) => {
+    const name = r.categorie?.name || 'Autre';
+    categoryMap[name] = (categoryMap[name] || 0) + 1;
+  });
+  const categoryData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  // Distribution par type
+  const typeMap: Record<string, number> = {};
+  resources.forEach((r: any) => {
+    const name = r.type || r.typeRessource || 'Autre';
+    typeMap[name] = (typeMap[name] || 0) + 1;
+  });
+  const typeData = Object.entries(typeMap).map(([name, value]) => ({ name, value }));
+
+  // Distribution par rôle
+  const roleMap: Record<string, number> = {};
+  users.forEach((u: any) => {
+    const role =
+      u.role === 'ADMIN' ? 'Administrateur' : u.role === 'MODERATOR' ? 'Modérateur' : 'Citoyen';
+    roleMap[role] = (roleMap[role] || 0) + 1;
+  });
+  const roleData = Object.entries(roleMap).map(([name, value]) => ({ name, value }));
+
+  // Top 5 ressources par vues
+  const topResources = [...resources]
+    .sort((a: any, b: any) => (b.views || 0) - (a.views || 0))
+    .slice(0, 5)
+    .map((r: any) => ({ title: r.title, views: r.views || 0 }));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -81,10 +107,7 @@ export default function Analytics() {
               <Users className="h-4 w-4 text-gray-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">
-                {mockStats.totalUsers.toLocaleString()}
-              </div>
-              <p className="text-xs text-green-600 mt-1">+12% ce mois</p>
+              <div className="text-3xl font-bold">{users.length.toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -94,10 +117,7 @@ export default function Analytics() {
               <FileText className="h-4 w-4 text-gray-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">
-                {mockStats.totalResources.toLocaleString()}
-              </div>
-              <p className="text-xs text-green-600 mt-1">+8% ce mois</p>
+              <div className="text-3xl font-bold">{resources.length.toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -107,10 +127,7 @@ export default function Analytics() {
               <Eye className="h-4 w-4 text-gray-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">
-                {mockStats.totalViews.toLocaleString()}
-              </div>
-              <p className="text-xs text-green-600 mt-1">+15% ce mois</p>
+              <div className="text-3xl font-bold">{totalViews.toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -120,42 +137,13 @@ export default function Analytics() {
               <MessageCircle className="h-4 w-4 text-gray-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">
-                {mockStats.totalComments.toLocaleString()}
-              </div>
-              <p className="text-xs text-green-600 mt-1">+20% ce mois</p>
+              <div className="text-3xl font-bold">{comments.length.toLocaleString()}</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Charts Row 1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Monthly Views */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Évolution des vues mensuelles</CardTitle>
-              <CardDescription>6 derniers mois</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={mockStats.monthlyViews}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="views"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    name="Vues"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
           {/* Top Resources */}
           <Card>
             <CardHeader>
@@ -164,7 +152,7 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={mockStats.topResources} layout="vertical">
+                <BarChart data={topResources} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
                   <YAxis dataKey="title" type="category" width={150} />
@@ -174,41 +162,30 @@ export default function Analytics() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Charts Row 2 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Resources by Category */}
+          {/* Ressources par catégorie - Bar chart */}
           <Card>
             <CardHeader>
               <CardTitle>Ressources par catégorie</CardTitle>
               <CardDescription>Distribution</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name}: ${(percent * 100).toFixed(0)}%`
-                    }
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={categoryData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
                   <Tooltip />
-                </PieChart>
+                  <Legend />
+                  <Bar dataKey="value" fill="#10b981" name="Ressources" />
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
+        </div>
 
+        {/* Charts Row 2 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Resources by Type */}
           <Card>
             <CardHeader>
@@ -223,14 +200,11 @@ export default function Analytics() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name}: ${(percent * 100).toFixed(0)}%`
-                    }
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     outerRadius={80}
-                    fill="#8884d8"
                     dataKey="value"
                   >
-                    {typeData.map((entry, index) => (
+                    {typeData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -254,14 +228,11 @@ export default function Analytics() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name}: ${(percent * 100).toFixed(0)}%`
-                    }
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     outerRadius={80}
-                    fill="#8884d8"
                     dataKey="value"
                   >
-                    {roleData.map((entry, index) => (
+                    {roleData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -272,7 +243,7 @@ export default function Analytics() {
           </Card>
         </div>
 
-        {/* Export Section */}
+        {/* Export */}
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Export des données</CardTitle>

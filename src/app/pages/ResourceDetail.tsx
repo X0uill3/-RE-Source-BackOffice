@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -14,71 +14,32 @@ import {
   Bookmark,
   BookmarkCheck,
 } from 'lucide-react';
-
-import {
-  mockResources,
-  mockComments,
-  currentUser,
-  toggleFavorite,
-  isFavorite,
-  type ResourceCategory,
-  type ResourceType,
-} from '../data/mockData';
-
-
 import { toast } from 'sonner';
+
+import { useAuthStore } from '../../store/authStore';
+import { useResourceDetail } from '../../hooks/useRessource';
+import { useComments, useAddComment } from '../../hooks/useComment';
 
 export default function ResourceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-//Alors on créer des constantes vides 
-  const [resource, setResource] = useState<any>(null);
-  const [comments, setComments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuthStore();
+  const { data: resource, isLoading } = useResourceDetail(id!);
+  const { data: comments = [] } = useComments(id!);
+  const addComment = useAddComment();
 
-  // Le stats d'avant 
   const [newComment, setNewComment] = useState('');
   const [isLiked, setIsLiked] = useState(false);
   const [isFav, setIsFav] = useState(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const resResponse = await fetch(`http://localhost:5000/api/resources/${id}`);
-        const resData = await resResponse.json();
-
-        // On extrait la ressource de l'enveloppe "data"
-        if (resData.status === 'success') {
-          setResource(resData.data.resource || resData.data); 
-        }
-
-        // Même chose pour les commentaires
-        const commentsResponse = await fetch(`http://localhost:5000/api/comments/ressource/${id}`);
-        const commentsData = await commentsResponse.json();
-        
-        if (commentsData.status === 'success') {
-          setComments(commentsData.data.comments || commentsData.data || []);
-        }
-      } catch (error) {
-        console.error('Erreur :', error);
-      } finally {
-  // INDISPENSABLE : même en cas d'erreur, on arrête le loading
-  setLoading(false); 
-}
-    };
-
-    if (id) loadData();
-  }, [id]);
-
-
-  if (loading) return <div>Chargement en cours...</div>;
-
-  /*useEffect(() => {
-    if (id) {
-      setIsFav(isFavorite(id));
-    }
-  }, [id]);*/
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 animate-pulse">Chargement de la ressource...</p>
+      </div>
+    );
+  }
 
   if (!resource) {
     return (
@@ -93,52 +54,40 @@ export default function ResourceDetail() {
     );
   }
 
-  const getCategoryLabel = (category: ResourceCategory) => {
-    const labels: Record<ResourceCategory, string> = {
-      famille: 'Famille',
-      amis: 'Amis',
-      collegues: 'Collègues',
-      voisins: 'Voisins',
-      communaute: 'Communauté',
-    };
-    return labels[category];
-  };
-
-  const getTypeLabel = (type: ResourceType) => {
-    const labels: Record<ResourceType, string> = {
-      article: 'Article',
-      video: 'Vidéo',
-      exercice: 'Exercice',
-      outil: 'Outil',
-    };
-    return labels[type];
-  };
-
-  const getCategoryColor = (category: ResourceCategory) => {
-    const colors: Record<ResourceCategory, string> = {
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
       famille: 'bg-pink-100 text-pink-700',
       amis: 'bg-yellow-100 text-yellow-700',
       collegues: 'bg-blue-100 text-blue-700',
       voisins: 'bg-green-100 text-green-700',
       communaute: 'bg-purple-100 text-purple-700',
     };
-    return colors[category];
+    return colors[category] || 'bg-gray-100 text-gray-700';
+  };
+
+  const getTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      article: 'Article',
+      video: 'Vidéo',
+      exercice: 'Exercice',
+      outil: 'Outil',
+    };
+    return labels[type] || type;
   };
 
   const handleLike = () => {
     setIsLiked(!isLiked);
-    toast.success(isLiked ? 'Ressource retirée des favoris' : 'Ressource ajoutée aux favoris');
+    toast.success(isLiked ? 'Like retiré' : 'Ressource likée');
   };
 
   const handleToggleFavorite = () => {
-    if (!currentUser) {
+    if (!user) {
       toast.error('Vous devez être connecté pour ajouter des favoris');
       navigate('/connexion');
       return;
     }
-    const newState = toggleFavorite(resource.id);
-    setIsFav(newState);
-    toast.success(newState ? 'Ajouté aux favoris' : 'Retiré des favoris');
+    setIsFav(!isFav);
+    toast.success(!isFav ? 'Ajouté aux favoris' : 'Retiré des favoris');
   };
 
   const handleShare = () => {
@@ -147,20 +96,20 @@ export default function ResourceDetail() {
 
   const handleSubmitComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) {
+    if (!user) {
       toast.error('Vous devez être connecté pour commenter');
       navigate('/connexion');
       return;
     }
     if (!newComment.trim()) return;
-
-    toast.success('Commentaire envoyé ! Il sera visible après modération.');
+    addComment.mutate({ resourceId: id!, content: newComment });
     setNewComment('');
+    toast.success('Commentaire envoyé ! Il sera visible après modération.');
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Back Button */}
+      {/* Bouton retour */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link to="/catalogue">
@@ -172,7 +121,6 @@ export default function ResourceDetail() {
         </div>
       </div>
 
-      {/* Resource Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Card>
           <CardContent className="pt-6">
@@ -190,11 +138,13 @@ export default function ResourceDetail() {
               <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
                 <span>Par {resource.author}</span>
                 <span>•</span>
-                <span>{new Date(resource.createdAt).toLocaleDateString('fr-FR', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}</span>
+                <span>
+                  {new Date(resource.createdAt).toLocaleDateString('fr-FR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </span>
               </div>
 
               {/* Stats */}
@@ -205,11 +155,11 @@ export default function ResourceDetail() {
                 </div>
                 <div className="flex items-center gap-1">
                   <Heart className="h-4 w-4" />
-                  <span>{resource.likes} J'aime</span>
+                  <span>{resource.likes || 0} J'aime</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <MessageCircle className="h-4 w-4" />
-                  <span>{resource.commentsCount} commentaires</span>
+                  <span>{comments.length} commentaires</span>
                 </div>
               </div>
             </div>
@@ -256,37 +206,35 @@ export default function ResourceDetail() {
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2 mb-6">
-              { (resource.tags || []).map((tag: string) => (
+              {(resource.tags || []).map((tag: string) => (
                 <Badge key={tag} variant="secondary">
                   #{tag}
                 </Badge>
               ))}
-              
             </div>
 
             <Separator className="my-6" />
 
-            {/* Content */}
+            {/* Contenu */}
             <div className="prose prose-sm md:prose max-w-none">
               <h2>Contenu</h2>
               <p>{resource.content}</p>
               <p className="text-gray-600">
-                Ce contenu détaillé vous guide étape par étape pour mettre en pratique
-                les conseils et améliorer vos relations {resource.categorie?.name?.toLowerCase() || 'générales'}.
+                Ce contenu détaillé vous guide étape par étape pour mettre en pratique les
+                conseils et améliorer vos relations{' '}
+                {resource.categorie?.name?.toLowerCase() || 'générales'}.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Comments Section */}
+        {/* Section commentaires */}
         <Card className="mt-6">
           <CardContent className="pt-6">
-            <h2 className="text-2xl font-bold mb-6">
-              Commentaires ({comments.length})
-            </h2>
+            <h2 className="text-2xl font-bold mb-6">Commentaires ({comments.length})</h2>
 
-            {/* New Comment Form */}
-            {currentUser ? (
+            {/* Formulaire */}
+            {user ? (
               <form onSubmit={handleSubmitComment} className="mb-6">
                 <Textarea
                   placeholder="Partagez votre expérience ou posez une question..."
@@ -295,9 +243,9 @@ export default function ResourceDetail() {
                   className="mb-3"
                   rows={4}
                 />
-                <Button type="submit" disabled={!newComment.trim()}>
+                <Button type="submit" disabled={!newComment.trim() || addComment.isPending}>
                   <MessageCircle className="h-4 w-4 mr-2" />
-                  Publier
+                  {addComment.isPending ? 'Envoi...' : 'Publier'}
                 </Button>
                 <p className="text-xs text-gray-500 mt-2">
                   Votre commentaire sera vérifié par notre équipe de modération avant publication.
@@ -314,22 +262,21 @@ export default function ResourceDetail() {
               </div>
             )}
 
-            {/* Comments List */}
+            {/* Liste des commentaires */}
             <div className="space-y-4">
-              {comments.map((comment) => (
+              {comments.map((comment: any) => (
                 <div key={comment._id} className="border-l-4 border-blue-200 pl-4 py-2">
                   <div className="flex items-center gap-2 mb-2">
-                    {/* On affiche l'ID de l'auteur car le nom n'est pas dans l'objet comment */}
-                    <span className="font-semibold text-sm">Utilisateur {comment.authorId.slice(-4)}</span>
+                    <span className="font-semibold text-sm">
+                      Utilisateur {comment.authorId?.slice(-4)}
+                    </span>
                     <span className="text-xs text-gray-500">
-                      {/* On utilise .date car c'est le nom dans ta base */}
                       {new Date(comment.date).toLocaleDateString('fr-FR')}
                     </span>
                   </div>
                   <p className="text-sm text-gray-700">{comment.content}</p>
                 </div>
               ))}
-
             </div>
           </CardContent>
         </Card>
