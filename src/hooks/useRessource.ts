@@ -46,6 +46,8 @@ export const useCreateResource = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['resources'] });
+            queryClient.invalidateQueries({ queryKey: ['my-contributions'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-resources'] });
         },
     });
 };

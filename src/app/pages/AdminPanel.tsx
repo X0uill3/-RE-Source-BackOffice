@@ -21,13 +21,15 @@ import {
   Trash2,
   Search,
   Eye,
+  CheckCircle,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '../../store/authStore';
 import { useAllResources } from '../../hooks/useRessource';
 import { useAllComments } from '../../hooks/useComment';
-import { useUsers, useDeleteUser, useDeleteComment, useToggleResourceVisibility } from '../../hooks/useAdmin';
+import { useUsers, useDeleteUser, useDeleteComment, useToggleResourceVisibility, usePendingResources, useValidateResource } from '../../hooks/useAdmin';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -38,10 +40,12 @@ export default function AdminPanel() {
   const { data: resources = [], isLoading: isLoadingResources } = useAllResources();
   const { data: users = [], isLoading: isLoadingUsers } = useUsers();
   const { data: comments = [], isLoading: isLoadingComments } = useAllComments();
+  const { data: pendingResources = [], isLoading: isLoadingPending } = usePendingResources();
 
   const deleteUser = useDeleteUser();
   const deleteComment = useDeleteComment();
   const toggleVisibility = useToggleResourceVisibility();
+  const validateResource = useValidateResource();
 
   if (!user) {
     toast.error('Vous devez être connecté pour accéder à cette page');
@@ -55,7 +59,7 @@ export default function AdminPanel() {
     return null;
   }
 
-  if (isLoadingResources || isLoadingUsers || isLoadingComments) {
+  if (isLoadingResources || isLoadingUsers || isLoadingComments || isLoadingPending) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-500 animate-pulse">Chargement du panel admin...</p>
@@ -74,6 +78,13 @@ export default function AdminPanel() {
     toggleVisibility.mutate({ resourceId, visibility }, {
       onSuccess: () => toast.success(visibility === 'Public' ? 'Ressource dépubliée' : 'Ressource publiée'),
       onError: () => toast.error('Erreur lors de la modification'),
+    });
+  };
+
+  const handleValidateResource = (resourceId: string) => {
+    validateResource.mutate(resourceId, {
+      onSuccess: () => toast.success('Ressource validée et publiée'),
+      onError: () => toast.error('Erreur lors de la validation'),
     });
   };
 
@@ -114,7 +125,7 @@ export default function AdminPanel() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Utilisateurs</CardTitle>
@@ -137,6 +148,16 @@ export default function AdminPanel() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">En attente</CardTitle>
+              <Clock className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-500">{pendingResources.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Commentaires</CardTitle>
               <MessageCircle className="h-4 w-4 text-gray-600" />
             </CardHeader>
@@ -147,8 +168,12 @@ export default function AdminPanel() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="comments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 md:w-auto md:inline-grid">
+        <Tabs defaultValue="pending" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 md:w-auto md:inline-grid">
+            <TabsTrigger value="pending">
+              <Clock className="h-4 w-4 mr-2" />
+              En attente {pendingResources.length > 0 && `(${pendingResources.length})`}
+            </TabsTrigger>
             <TabsTrigger value="comments">
               <MessageCircle className="h-4 w-4 mr-2" />
               Commentaires
@@ -162,6 +187,77 @@ export default function AdminPanel() {
               Utilisateurs
             </TabsTrigger>
           </TabsList>
+
+          {/* En attente de validation */}
+          <TabsContent value="pending">
+            <Card>
+              <CardHeader>
+                <CardTitle>Ressources en attente de validation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pendingResources.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCircle className="h-12 w-12 text-green-300 mx-auto mb-4" />
+                    <p className="text-gray-500">Aucune ressource en attente</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Titre</TableHead>
+                          <TableHead>Auteur</TableHead>
+                          <TableHead>Catégorie</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingResources.map((resource: any) => (
+                          <TableRow key={resource._id}>
+                            <TableCell className="font-medium max-w-xs truncate">
+                              {resource.title}
+                            </TableCell>
+                            <TableCell>
+                              {resource.userId?.firstname
+                                ? `${resource.userId.firstname} ${resource.userId.lastname}`
+                                : '—'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {resource.categorie?.name || '—'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {new Date(resource.createdAt).toLocaleDateString('fr-FR')}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Link to={`/ressource/${resource._id}`}>
+                                  <Button size="sm" variant="outline">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={() => handleValidateResource(resource._id)}
+                                  disabled={validateResource.isPending}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Valider
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Commentaires */}
           <TabsContent value="comments">
@@ -183,10 +279,12 @@ export default function AdminPanel() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <span className="font-semibold text-sm">
-                                Utilisateur {comment.authorId?.toString().slice(-4)}
+                                {comment.authorId?.firstname
+                                  ? `${comment.authorId.firstname} ${comment.authorId.lastname}`
+                                  : `Utilisateur #${comment.authorId?.toString().slice(-4) ?? '????'}`}
                               </span>
                               <span className="text-xs text-gray-500">
-                                {new Date(comment.date).toLocaleDateString('fr-FR')}
+                                {comment.date ? new Date(comment.date).toLocaleDateString('fr-FR') : ''}
                               </span>
                             </div>
                             <p className="text-sm text-gray-700 mb-3">{comment.content}</p>

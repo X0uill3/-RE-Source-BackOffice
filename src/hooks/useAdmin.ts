@@ -1,6 +1,31 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 
+export const usePendingResources = () => {
+    return useQuery({
+        queryKey: ['pending-resources'],
+        queryFn: async () => {
+            const response = await api.get('/resources/admin/all');
+            const all = response.data.data.resources || [];
+            return all.filter((r: any) => r.systemStatus === 'Disabled');
+        },
+    });
+};
+
+export const useValidateResource = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (resourceId: string) => {
+            const response = await api.patch(`/resources/${resourceId}/validate`);
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['resources'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-resources'] });
+        },
+    });
+};
+
 export const useUsers = () => {
     return useQuery({
         queryKey: ['users'],

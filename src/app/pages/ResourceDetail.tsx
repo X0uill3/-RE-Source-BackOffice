@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -8,7 +8,6 @@ import { Separator } from '../components/ui/separator';
 import {
   ArrowLeft,
   Eye,
-  Heart,
   MessageCircle,
   Share2,
   Bookmark,
@@ -19,6 +18,18 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../store/authStore';
 import { useResourceDetail } from '../../hooks/useRessource';
 import { useComments, useAddComment } from '../../hooks/useComment';
+import {
+  useMyInteractions,
+  useRecordInteraction,
+  useRemoveInteraction,
+} from '../../hooks/useInteraction';
+
+const TYPE_LABELS: Record<string, string> = {
+  ARTICLE: 'Article',
+  VIDEO: 'Vidéo',
+  ACTIVITY: 'Exercice',
+  GAME: 'Jeu / Outil',
+};
 
 export default function ResourceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -29,9 +40,64 @@ export default function ResourceDetail() {
   const { data: comments = [] } = useComments(id!);
   const addComment = useAddComment();
 
+  // Toutes les interactions de l'utilisateur pour cette ressource
+  const { data: myInteractions = [] } = useMyInteractions(user?._id);
+  const recordInteraction = useRecordInteraction();
+  const removeInteraction = useRemoveInteraction();
+
+  // IDs des interactions en cours pour cette ressource
+  const [favoriteId, setFavoriteId] = useState<string | null>(null);
+  const [exploitedId, setExploitedId] = useState<string | null>(null);
+  const [viewRecorded, setViewRecorded] = useState(false);
+
   const [newComment, setNewComment] = useState('');
-  const [isLiked, setIsLiked] = useState(false);
-  const [isFav, setIsFav] = useState(false);
+
+  // Synchroniser l'état des boutons depuis les interactions chargées
+  useEffect(() => {
+    if (!id || !myInteractions.length) return;
+    const forThisResource = myInteractions.filter(
+      (i: any) => i.ressourceId?.toString() === id || i.ressourceId?._id?.toString() === id
+    );
+    const fav = forThisResource.find((i: any) => i.interactionType === 'FAVORITE');
+    const share = forThisResource.find((i: any) => i.interactionType === 'SHARE');
+    setFavoriteId(fav?._id ?? null);
+    setExploitedId(share?._id ?? null);
+  }, [myInteractions, id]);
+
+  // Enregistrer une vue au chargement (une seule fois par session)
+  useEffect(() => {
+    if (!user || !id || viewRecorded || !resource) return;
+    setViewRecorded(true);
+    recordInteraction.mutate({ interactionType: 'VIEW', ressourceId: id });
+  }, [user, id, resource]);
+
+  // Toggle générique pour FAVORITE / SAVE / SHARE
+  const handleToggle = (
+    type: 'FAVORITE' | 'SAVE' | 'SHARE',
+    currentId: string | null,
+    setId: (v: string | null) => void,
+    label: { add: string; remove: string }
+  ) => {
+    if (!user) {
+      toast.error('Vous devez être connecté');
+      navigate('/connexion');
+      return;
+    }
+    if (currentId) {
+      removeInteraction.mutate(currentId, {
+        onSuccess: () => { setId(null); toast.success(label.remove); },
+        onError: () => toast.error('Erreur lors de la modification'),
+      });
+    } else {
+      recordInteraction.mutate({ interactionType: type, ressourceId: id! }, {
+        onSuccess: (interaction: any) => {
+          setId(interaction?._id ?? null);
+          toast.success(label.add);
+        },
+        onError: () => toast.error('Erreur lors de la modification'),
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -46,52 +112,24 @@ export default function ResourceDetail() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Ressource non trouvée</h2>
-          <Link to="/catalogue">
-            <Button>Retour au catalogue</Button>
-          </Link>
+          <Link to="/catalogue"><Button>Retour au catalogue</Button></Link>
         </div>
       </div>
     );
   }
 
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      famille: 'bg-pink-100 text-pink-700',
-      amis: 'bg-yellow-100 text-yellow-700',
-      collegues: 'bg-blue-100 text-blue-700',
-      voisins: 'bg-green-100 text-green-700',
-      communaute: 'bg-purple-100 text-purple-700',
-    };
-    return colors[category] || 'bg-gray-100 text-gray-700';
-  };
-
-  const getTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      article: 'Article',
-      video: 'Vidéo',
-      exercice: 'Exercice',
-      outil: 'Outil',
-    };
-    return labels[type] || type;
-  };
-
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    toast.success(isLiked ? 'Like retiré' : 'Ressource likée');
-  };
-
-  const handleToggleFavorite = () => {
-    if (!user) {
-      toast.error('Vous devez être connecté pour ajouter des favoris');
-      navigate('/connexion');
-      return;
-    }
-    setIsFav(!isFav);
-    toast.success(!isFav ? 'Ajouté aux favoris' : 'Retiré des favoris');
-  };
+  const authorName = resource.userId
+    ? `${resource.userId.firstname} ${resource.userId.lastname}`
+    : 'Anonyme';
 
   const handleShare = () => {
-    toast.success('Lien copié dans le presse-papier');
+    navigator.clipboard.writeText(window.location.href).catch(() => {});
+    toast.success('Lien copié dans le presse-papier !');
+    if (user && !exploitedId) {
+      recordInteraction.mutate({ interactionType: 'SHARE', ressourceId: id! }, {
+        onSuccess: (interaction: any) => setExploitedId(interaction?._id ?? null),
+      });
+    }
   };
 
   const handleSubmitComment = (e: React.FormEvent) => {
@@ -102,14 +140,20 @@ export default function ResourceDetail() {
       return;
     }
     if (!newComment.trim()) return;
-    addComment.mutate({ resourceId: id!, content: newComment });
-    setNewComment('');
-    toast.success('Commentaire envoyé ! Il sera visible après modération.');
+    addComment.mutate(
+      { resourceId: id!, content: newComment },
+      {
+        onSuccess: () => {
+          setNewComment('');
+          toast.success('Commentaire envoyé ! Il sera visible après modération.');
+        },
+        onError: () => toast.error("Erreur lors de l'envoi du commentaire"),
+      }
+    );
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Bouton retour */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link to="/catalogue">
@@ -127,16 +171,20 @@ export default function ResourceDetail() {
             {/* Header */}
             <div className="mb-6">
               <div className="flex flex-wrap items-center gap-2 mb-4">
-                <Badge className={getCategoryColor(resource.categorie?.name || 'famille')}>
-                  {resource.categorie?.name || 'Général'}
-                </Badge>
-                <Badge variant="outline">{getTypeLabel(resource.type)}</Badge>
+                {resource.categorie?.name && (
+                  <Badge variant="outline">{resource.categorie.name}</Badge>
+                )}
+                {resource.typeRessource && (
+                  <Badge variant="secondary">
+                    {TYPE_LABELS[resource.typeRessource] || resource.typeRessource}
+                  </Badge>
+                )}
               </div>
 
               <h1 className="text-3xl md:text-4xl font-bold mb-4">{resource.title}</h1>
 
               <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
-                <span>Par {resource.author}</span>
+                <span>Par {authorName}</span>
                 <span>•</span>
                 <span>
                   {new Date(resource.createdAt).toLocaleDateString('fr-FR', {
@@ -147,15 +195,10 @@ export default function ResourceDetail() {
                 </span>
               </div>
 
-              {/* Stats */}
               <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
                   <Eye className="h-4 w-4" />
-                  <span>{(resource.views || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Heart className="h-4 w-4" />
-                  <span>{resource.likes || 0} J'aime</span>
+                  <span>{(resource.views || 0).toLocaleString()} vues</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <MessageCircle className="h-4 w-4" />
@@ -164,33 +207,26 @@ export default function ResourceDetail() {
               </div>
             </div>
 
-            {/* Actions */}
+            {/* Barre d'actions — même logique que le Mobile */}
             <div className="flex flex-wrap gap-3 mb-6">
+              {/* Enregistrer = FAVORITE */}
               <Button
-                variant={isLiked ? 'default' : 'outline'}
-                onClick={handleLike}
+                variant={favoriteId ? 'default' : 'outline'}
+                onClick={() => handleToggle('FAVORITE', favoriteId, setFavoriteId, {
+                  add: 'Ajouté aux favoris !',
+                  remove: 'Retiré des favoris',
+                })}
+                disabled={recordInteraction.isPending || removeInteraction.isPending}
                 className="flex-1 sm:flex-none"
               >
-                <Heart className={`h-4 w-4 mr-2 ${isLiked ? 'fill-current' : ''}`} />
-                J'aime
-              </Button>
-              <Button
-                variant={isFav ? 'default' : 'outline'}
-                onClick={handleToggleFavorite}
-                className="flex-1 sm:flex-none"
-              >
-                {isFav ? (
-                  <>
-                    <BookmarkCheck className="h-4 w-4 mr-2" />
-                    Enregistré
-                  </>
+                {favoriteId ? (
+                  <><BookmarkCheck className="h-4 w-4 mr-2" />Enregistré</>
                 ) : (
-                  <>
-                    <Bookmark className="h-4 w-4 mr-2" />
-                    Enregistrer
-                  </>
+                  <><Bookmark className="h-4 w-4 mr-2" />Enregistrer</>
                 )}
               </Button>
+
+              {/* Partager = copie le lien + enregistre SHARE */}
               <Button variant="outline" onClick={handleShare} className="flex-1 sm:flex-none">
                 <Share2 className="h-4 w-4 mr-2" />
                 Partager
@@ -199,41 +235,26 @@ export default function ResourceDetail() {
 
             <Separator className="my-6" />
 
-            {/* Description */}
-            <div className="prose prose-sm md:prose max-w-none mb-6">
+            <div className="mb-6">
               <p className="text-lg text-gray-700">{resource.description}</p>
             </div>
 
-            {/* Tags */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              {(resource.tags || []).map((tag: string) => (
-                <Badge key={tag} variant="secondary">
-                  #{tag}
-                </Badge>
-              ))}
-            </div>
-
-            <Separator className="my-6" />
-
-            {/* Contenu */}
-            <div className="prose prose-sm md:prose max-w-none">
-              <h2>Contenu</h2>
-              <p>{resource.content}</p>
-              <p className="text-gray-600">
-                Ce contenu détaillé vous guide étape par étape pour mettre en pratique les
-                conseils et améliorer vos relations{' '}
-                {resource.categorie?.name?.toLowerCase() || 'générales'}.
-              </p>
-            </div>
+            {resource.content && (
+              <div>
+                <h2 className="text-xl font-semibold mb-3">Contenu</h2>
+                <p className="text-gray-700 whitespace-pre-wrap">{resource.content}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Section commentaires */}
+        {/* Commentaires */}
         <Card className="mt-6">
           <CardContent className="pt-6">
-            <h2 className="text-2xl font-bold mb-6">Commentaires ({comments.length})</h2>
+            <h2 className="text-2xl font-bold mb-6">
+              Commentaires ({comments.length})
+            </h2>
 
-            {/* Formulaire */}
             {user ? (
               <form onSubmit={handleSubmitComment} className="mb-6">
                 <Textarea
@@ -248,7 +269,7 @@ export default function ResourceDetail() {
                   {addComment.isPending ? 'Envoi...' : 'Publier'}
                 </Button>
                 <p className="text-xs text-gray-500 mt-2">
-                  Votre commentaire sera vérifié par notre équipe de modération avant publication.
+                  Votre commentaire sera vérifié avant publication.
                 </p>
               </form>
             ) : (
@@ -256,28 +277,38 @@ export default function ResourceDetail() {
                 <p className="text-sm text-blue-800 mb-2">
                   Vous devez être connecté pour commenter
                 </p>
-                <Link to="/connexion">
-                  <Button size="sm">Se connecter</Button>
-                </Link>
+                <Link to="/connexion"><Button size="sm">Se connecter</Button></Link>
               </div>
             )}
 
-            {/* Liste des commentaires */}
-            <div className="space-y-4">
-              {comments.map((comment: any) => (
-                <div key={comment._id} className="border-l-4 border-blue-200 pl-4 py-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-semibold text-sm">
-                      Utilisateur {comment.authorId?.slice(-4)}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(comment.date).toLocaleDateString('fr-FR')}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-700">{comment.content}</p>
-                </div>
-              ))}
-            </div>
+            {comments.length === 0 ? (
+              <p className="text-gray-500 text-sm text-center py-4">
+                Aucun commentaire pour l'instant. Soyez le premier !
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {comments.map((comment: any) => {
+                  // authorId est populé { _id, firstname, lastname }
+                  const author = comment.authorId;
+                  const authorName = author?.firstname
+                    ? `${author.firstname} ${author.lastname}`
+                    : `Utilisateur #${author?.toString().slice(-4) ?? '????'}`;
+                  return (
+                    <div key={comment._id} className="border-l-4 border-blue-200 pl-4 py-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-semibold text-sm">{authorName}</span>
+                        <span className="text-xs text-gray-500">
+                          {comment.date
+                            ? new Date(comment.date).toLocaleDateString('fr-FR')
+                            : ''}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-700">{comment.content}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

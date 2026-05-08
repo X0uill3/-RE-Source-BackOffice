@@ -5,38 +5,28 @@ import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import {
-  Heart,
-  BookOpen,
-  TrendingUp,
-  Eye,
-  LogOut,
-} from 'lucide-react';
+import { Heart, BookOpen, TrendingUp, Eye, LogOut, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
-// 2. On importe notre vraie mémoire globale
 import { useAuthStore } from '../../store/authStore';
 import { useMyContributions } from '../../hooks/useRessource';
-import { useMyFavorites } from '../../hooks/useInteraction'; 
+import { useMyFavorites, useMyInteractions } from '../../hooks/useInteraction';
+
+const GOAL_VIEWED = 10;
+const GOAL_EXPLOITED = 5;
+const GOAL_CONTRIBUTIONS = 5;
+
 export default function Dashboard() {
   const navigate = useNavigate();
-  
-  // 1. On récupère notre utilisateur depuis Zustand
   const { user, logout } = useAuthStore();
 
-  // 2. LA MAGIE REACT QUERY : On appelle notre nouveau hook !
-  // Il gère tout seul la requête, le stockage, et nous dit s'il est en train de charger (isLoading)
-  const { 
-    data: myContributions = [], 
-    isLoading: isLoadingContributions 
-  } = useMyContributions(user?._id);
+  const { data: myContributions = [], isLoading: isLoadingContributions } =
+    useMyContributions(user?._id);
+  const { data: favoriteResources = [], isLoading: isLoadingFavorites } =
+    useMyFavorites(user?._id);
+  const { data: myInteractions = [], isLoading: isLoadingInteractions } =
+    useMyInteractions(user?._id);
 
-  const { 
-    data: favoriteResources = [], 
-    isLoading: isLoadingFavorites 
-  } = useMyFavorites(user?._id);
-
-  // Sécurité de connexion
   useEffect(() => {
     if (!user) {
       toast.error('Vous devez être connecté pour accéder à cette page');
@@ -44,25 +34,37 @@ export default function Dashboard() {
     }
   }, [user, navigate]);
 
- if (!user) {
-    return null; // Évite les crashs pendant la redirection
+  if (!user) return null;
+
+  if (isLoadingContributions || isLoadingFavorites || isLoadingInteractions) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 font-medium animate-pulse">
+          Chargement de votre espace personnel...
+        </p>
+      </div>
+    );
   }
+
+  // Ressources consultées = interactions VIEW dédupliquées par ressourceId
+  const viewedResourceIds = new Set(
+    myInteractions
+      .filter((i: any) => i.interactionType === 'VIEW')
+      .map((i: any) => i.ressourceId?.toString() ?? i.ressourceId)
+  );
+  const viewedCount = viewedResourceIds.size;
+
+  // Exercices exploités = interactions SHARE
+  const exploitedCount = myInteractions.filter(
+    (i: any) => i.interactionType === 'SHARE'
+  ).length;
 
   const handleLogout = () => {
     logout();
     toast.success('Déconnexion réussie');
     navigate('/');
   };
-  
-  // 4. Un petit écran de chargement global pour faire propre
-  if (isLoadingContributions || isLoadingFavorites) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500 font-medium animate-pulse">Chargement de votre espace personnel...</p>
-      </div>
-    );
-  }
-  
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -72,11 +74,9 @@ export default function Dashboard() {
             <div>
               <h1 className="text-3xl md:text-4xl font-bold mb-2">Tableau de bord</h1>
               <p className="text-gray-600">
-                {/* 4. On utilise firstname au lieu de name */}
                 Bienvenue, <span className="font-semibold">{user.firstname}</span> !
               </p>
               <Badge variant="outline" className="mt-2">
-                {/* 5. On utilise les rôles tels qu'ils sont dans ton backend */}
                 {user.role === 'USER' && 'Citoyen'}
                 {user.role === 'MODERATOR' && 'Modérateur'}
                 {user.role === 'ADMIN' && 'Administrateur'}
@@ -108,9 +108,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{favoriteResources.length}</div>
-              <p className="text-xs text-gray-500 mt-1">
-                Vos ressources enregistrées
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Vos ressources enregistrées</p>
             </CardContent>
           </Card>
 
@@ -121,9 +119,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{myContributions.length}</div>
-              <p className="text-xs text-gray-500 mt-1">
-                Ressources créées
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Ressources créées</p>
             </CardContent>
           </Card>
 
@@ -134,11 +130,11 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {myContributions.reduce((sum: number, r: { views: number; }) => sum + r.views, 0).toLocaleString()}
+                {myContributions
+                  .reduce((sum: number, r: any) => sum + (r.views || 0), 0)
+                  .toLocaleString()}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Vues sur vos ressources
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Vues sur vos ressources</p>
             </CardContent>
           </Card>
         </div>
@@ -152,24 +148,43 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-2 text-sm">
-                  <span>Ressources consultées</span>
-                  <span className="font-medium">12 / 20</span>
+                  <span className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-blue-500" />
+                    Ressources consultées
+                  </span>
+                  <span className="font-medium">
+                    {viewedCount} / {GOAL_VIEWED}
+                  </span>
                 </div>
-                <Progress value={60} />
+                <Progress value={Math.min((viewedCount / GOAL_VIEWED) * 100, 100)} />
               </div>
+
               <div>
                 <div className="flex justify-between mb-2 text-sm">
-                  <span>Exercices complétés</span>
-                  <span className="font-medium">5 / 10</span>
+                  <span className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    Ressources exploitées
+                  </span>
+                  <span className="font-medium">
+                    {exploitedCount} / {GOAL_EXPLOITED}
+                  </span>
                 </div>
-                <Progress value={50} />
+                <Progress value={Math.min((exploitedCount / GOAL_EXPLOITED) * 100, 100)} />
               </div>
+
               <div>
                 <div className="flex justify-between mb-2 text-sm">
-                  <span>Contributions partagées</span>
-                  <span className="font-medium">{myContributions.length} / 5</span>
+                  <span className="flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-purple-500" />
+                    Contributions partagées
+                  </span>
+                  <span className="font-medium">
+                    {myContributions.length} / {GOAL_CONTRIBUTIONS}
+                  </span>
                 </div>
-                <Progress value={(myContributions.length / 5) * 100} />
+                <Progress
+                  value={Math.min((myContributions.length / GOAL_CONTRIBUTIONS) * 100, 100)}
+                />
               </div>
             </div>
           </CardContent>
@@ -180,11 +195,11 @@ export default function Dashboard() {
           <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid">
             <TabsTrigger value="favorites">
               <Heart className="h-4 w-4 mr-2" />
-              Mes favoris
+              Mes favoris ({favoriteResources.length})
             </TabsTrigger>
             <TabsTrigger value="contributions">
               <BookOpen className="h-4 w-4 mr-2" />
-              Mes contributions
+              Mes contributions ({myContributions.length})
             </TabsTrigger>
           </TabsList>
 
@@ -208,7 +223,6 @@ export default function Dashboard() {
                 ) : (
                   <div className="space-y-4">
                     {favoriteResources.map((interaction: any) => {
-                      // L'API retourne des interactions avec la ressource dans le champ ressourceId
                       const resource = interaction.ressourceId || interaction;
                       const resourceId = resource._id || resource.id;
                       return (
@@ -230,7 +244,7 @@ export default function Dashboard() {
                             <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                               <span className="flex items-center gap-1">
                                 <Eye className="h-3 w-3" />
-                                {(resource.views || 0).toLocaleString()}
+                                {(resource.views || 0).toLocaleString()} vues
                               </span>
                             </div>
                           </div>
@@ -291,11 +305,9 @@ export default function Dashboard() {
                             </span>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Link to={`/ressource/${resource._id}`}>
-                            <Button size="sm">Voir</Button>
-                          </Link>
-                        </div>
+                        <Link to={`/ressource/${resource._id}`}>
+                          <Button size="sm">Voir</Button>
+                        </Link>
                       </div>
                     ))}
                   </div>
