@@ -19,9 +19,9 @@ import { TrendingUp, Users, Eye, MessageCircle, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '../../store/authStore';
-import { useMyContributions } from '../../hooks/useRessource';
+import { useAllResources } from '../../hooks/useRessource';
 import { useUsers } from '../../hooks/useAdmin';
-import { useComments } from '../../hooks/useComment';
+import { useAllComments } from '../../hooks/useComment';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -31,10 +31,9 @@ export default function Analytics() {
   // ✅ Vrai utilisateur depuis Zustand
   const { user } = useAuthStore();
 
-  // ✅ Données réelles pour les KPIs
-  const { data: resources = [] } = useMyContributions(user?.id || '');
+  const { data: resources = [] } = useAllResources();
   const { data: users = [] } = useUsers();
-  const { data: comments = [] } = useComments('');
+  const { data: comments = [] } = useAllComments();
 
   // ✅ Vrai garde de connexion et de rôle
   if (!user) {

@@ -1,18 +1,28 @@
-import { Outlet, Link, useLocation } from 'react-router';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router';
 import { Button } from './ui/button';
 import { Menu, X, Heart, Users, BookOpen, BarChart3, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { currentUser } from '../data/mockData';
+import { useAuthStore } from '../../store/authStore';
 
 export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState(currentUser);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const { user, logout, restoreToken } = useAuthStore();
 
   useEffect(() => {
-    setUser(currentUser);
+    restoreToken();
+  }, []);
+
+  useEffect(() => {
     setMobileMenuOpen(false);
   }, [location]);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   const navigation = [
     { name: 'Accueil', href: '/' },
@@ -23,7 +33,7 @@ export default function Layout() {
     ? [
       { name: 'Mon tableau de bord', href: '/tableau-de-bord', icon: Heart },
       { name: 'Créer une ressource', href: '/creer-ressource', icon: BookOpen },
-      ...(user.role === 'admin' || user.role === 'moderateur'
+      ...(user.role === 'ADMIN' || user.role === 'MODERATOR'
         ? [
           { name: 'Administration', href: '/admin', icon: Settings },
           { name: 'Analytics', href: '/analytics', icon: BarChart3 },
@@ -63,7 +73,7 @@ export default function Layout() {
               {user ? (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-gray-700">
-                    Bonjour, <span className="font-medium">{user.name}</span>
+                    Bonjour, <span className="font-medium">{user.firstname}</span>
                   </span>
                   {userNavigation.map((item) => (
                     <Link key={item.name} to={item.href}>
@@ -76,6 +86,9 @@ export default function Layout() {
                       </Button>
                     </Link>
                   ))}
+                  <Button variant="ghost" size="sm" onClick={handleLogout}>
+                    Déconnexion
+                  </Button>
                 </div>
               ) : (
                 <div className="flex items-center space-x-3">
@@ -119,7 +132,7 @@ export default function Layout() {
               {user ? (
                 <>
                   <div className="px-4 py-2 text-sm text-gray-500">
-                    Connecté en tant que <span className="font-medium text-gray-700">{user.name}</span>
+                    Connecté en tant que <span className="font-medium text-gray-700">{user.firstname} {user.lastname}</span>
                   </div>
                   {userNavigation.map((item) => (
                     <Link
@@ -134,6 +147,11 @@ export default function Layout() {
                       {item.name}
                     </Link>
                   ))}
+                  <div className="px-4 pt-2">
+                    <Button variant="outline" className="w-full" onClick={handleLogout}>
+                      Déconnexion
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <div className="space-y-2 px-4 pt-2">

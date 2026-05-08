@@ -24,11 +24,12 @@ export const useDeleteUser = () => {
     });
 };
 
-export const useModerateComment = () => {
+// Rejeter = supprimer le commentaire (pas d'endpoint de modération dans le backend)
+export const useDeleteComment = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ commentId, action }: { commentId: string, action: 'approve' | 'reject' }) => {
-            const response = await api.patch(`/comments/${commentId}/moderate`, { action });
+        mutationFn: async (commentId: string) => {
+            const response = await api.delete(`/comments/${commentId}`);
             return response.data;
         },
         onSuccess: () => {
@@ -37,11 +38,12 @@ export const useModerateComment = () => {
     });
 };
 
-export const useToggleResource = () => {
+export const useToggleResourceVisibility = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ resourceId, isPublic }: { resourceId: string, isPublic: boolean }) => {
-            const response = await api.patch(`/resources/${resourceId}`, { isPublic: !isPublic });
+        mutationFn: async ({ resourceId, visibility }: { resourceId: string, visibility: string }) => {
+            const newVisibility = visibility === 'Public' ? 'Private' : 'Public';
+            const response = await api.patch(`/resources/${resourceId}`, { visibility: newVisibility });
             return response.data;
         },
         onSuccess: () => {

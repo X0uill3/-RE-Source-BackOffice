@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 
-// 1. L'interface avec nos fonctions web
 interface AuthState {
     user: any | null;
     token: string | null;
@@ -8,6 +7,7 @@ interface AuthState {
     login: (email: string, password: string) => Promise<void>;
     logout: () => void;
     restoreToken: () => void;
+    register: (firstname: string, lastname: string, email: string, password: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -62,5 +62,31 @@ export const useAuthStore = create<AuthState>((set) => ({
         } else {
             set({ token: null, user: null, isLoading: false });
         }
-    }
+    },
+
+    // 5. L'inscription
+    register: async (firstname: string, lastname: string, email: string, password: string) => {
+        set({ isLoading: true });
+        try {
+            const response = await fetch('http://localhost:5000/api/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ firstname, lastname, email, password }),
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                localStorage.setItem('token', result.token);
+                localStorage.setItem('user', JSON.stringify(result.data.user));
+                set({ token: result.token, user: result.data.user, isLoading: false });
+            } else {
+                set({ isLoading: false });
+                throw new Error(result.message || "Erreur lors de l'inscription");
+            }
+        } catch (error: any) {
+            set({ isLoading: false });
+            throw new Error(error.message || "Impossible de contacter le serveur");
+        }
+    },
 }));

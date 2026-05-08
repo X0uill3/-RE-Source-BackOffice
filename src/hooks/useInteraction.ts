@@ -4,19 +4,15 @@ import api from "../services/api";
 export const useMyFavorites = (userId: string | undefined) => {
     return useQuery({
         queryKey: ['my-favorites', userId],
-       queryFn: async () => {
-        const response = await api.get('/interactions/user/favorites');
-        console.log('API favorites response:', response.data);
-        
-        const data = response.data.data;
-        
-        // On s'assure de toujours retourner un tableau
-        if (Array.isArray(data)) return data;
-        if (Array.isArray(data?.favorites)) return data.favorites;
-        if (Array.isArray(response.data?.favorites)) return response.data.favorites;
-        
-        return [];
-    },
+        queryFn: async () => {
+            const response = await api.get('/interactions/user/favorites');
+            const data = response.data.data;
+            // L'API retourne { favoriteResources: [...] } où chaque élément est une interaction
+            // avec la ressource populée dans le champ ressourceId
+            if (Array.isArray(data?.favoriteResources)) return data.favoriteResources;
+            if (Array.isArray(data)) return data;
+            return [];
+        },
         enabled: !!userId
     });
 };

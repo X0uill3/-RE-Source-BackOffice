@@ -1,16 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
 
+// Toutes les ressources publiques
+export const useAllResources = () => {
+    return useQuery({
+        queryKey: ['resources', 'all'],
+        queryFn: async () => {
+            const response = await api.get('/resources');
+            return response.data.data.resources || [];
+        },
+    });
+};
+
+// Ressources d'un utilisateur précis
 export const useMyContributions = (userId: string | undefined) => {
     return useQuery({
-        queryKey: ['my-contributions', userId], 
+        queryKey: ['my-contributions', userId],
         queryFn: async () => {
             const response = await api.get(`/resources/user/${userId}`);
-            
-            
             return response.data.data.resources || response.data.data || [];
         },
-        enabled: !!userId, 
+        enabled: !!userId,
     });
 };
 

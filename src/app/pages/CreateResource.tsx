@@ -15,29 +15,42 @@ import {
 import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { ArrowLeft, Plus, X } from 'lucide-react';
-import { currentUser, type ResourceCategory, type ResourceType } from '../data/mockData';
 import { toast } from 'sonner';
 import { Link } from 'react-router';
+import { useAuthStore } from '../../store/authStore';
+import { useCreateResource } from '../../hooks/useRessource';
+import { useCategorie } from '../../hooks/useCategorie';
+
+const TYPE_OPTIONS = [
+  { value: 'ARTICLE', label: 'Article' },
+  { value: 'VIDEO', label: 'Vidéo' },
+  { value: 'ACTIVITY', label: 'Exercice' },
+  { value: 'GAME', label: 'Jeu / Outil' },
+];
 
 export default function CreateResource() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const createResource = useCreateResource();
+  const { data: categories = [] } = useCategorie();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
-  const [category, setCategory] = useState<ResourceCategory>('famille');
-  const [type, setType] = useState<ResourceType>('article');
+  const [categoryId, setCategoryId] = useState('');
+  const [typeRessource, setTypeRessource] = useState('ARTICLE');
   const [isPublic, setIsPublic] = useState(true);
   const [tags, setTags] = useState<string[]>([]);
   const [currentTag, setCurrentTag] = useState('');
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!user) {
       toast.error('Vous devez être connecté pour créer une ressource');
       navigate('/connexion');
     }
-  }, [navigate]);
+  }, [user, navigate]);
 
-  if (!currentUser) {
+  if (!user) {
     return null;
   }
 
@@ -52,7 +65,7 @@ export default function CreateResource() {
     setTags(tags.filter((t) => t !== tag));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim() || !description.trim() || !content.trim()) {
@@ -60,12 +73,25 @@ export default function CreateResource() {
       return;
     }
 
-    toast.success(
-      isPublic
-        ? 'Ressource créée avec succès ! Elle est maintenant visible par tous.'
-        : 'Ressource créée et enregistrée en privé.'
-    );
-    navigate('/tableau-de-bord');
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('content', content);
+    formData.append('typeRessource', typeRessource);
+    formData.append('visibility', isPublic ? 'Public' : 'Private');
+    if (categoryId) formData.append('categorie', categoryId);
+
+    try {
+      await createResource.mutateAsync(formData);
+      toast.success(
+        isPublic
+          ? 'Ressource créée ! Elle sera visible après validation.'
+          : 'Ressource enregistrée en privé.'
+      );
+      navigate('/tableau-de-bord');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Erreur lors de la création');
+    }
   };
 
   return (
@@ -129,19 +155,17 @@ export default function CreateResource() {
               {/* Category and Type */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="category">
-                    Catégorie <span className="text-red-500">*</span>
-                  </Label>
-                  <Select value={category} onValueChange={(value) => setCategory(value as ResourceCategory)}>
+                  <Label htmlFor="category">Catégorie</Label>
+                  <Select value={categoryId} onValueChange={setCategoryId}>
                     <SelectTrigger id="category">
-                      <SelectValue />
+                      <SelectValue placeholder="Sélectionner..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="famille">Famille</SelectItem>
-                      <SelectItem value="amis">Amis</SelectItem>
-                      <SelectItem value="collegues">Collègues</SelectItem>
-                      <SelectItem value="voisins">Voisins</SelectItem>
-                      <SelectItem value="communaute">Communauté</SelectItem>
+                      {categories.map((cat: any) => (
+                        <SelectItem key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -150,15 +174,16 @@ export default function CreateResource() {
                   <Label htmlFor="type">
                     Type de ressource <span className="text-red-500">*</span>
                   </Label>
-                  <Select value={type} onValueChange={(value) => setType(value as ResourceType)}>
+                  <Select value={typeRessource} onValueChange={setTypeRessource}>
                     <SelectTrigger id="type">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="article">Article</SelectItem>
-                      <SelectItem value="video">Vidéo</SelectItem>
-                      <SelectItem value="exercice">Exercice</SelectItem>
-                      <SelectItem value="outil">Outil</SelectItem>
+                      {TYPE_OPTIONS.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -191,7 +216,7 @@ export default function CreateResource() {
                     placeholder="Ajouter un mot-clé"
                     value={currentTag}
                     onChange={(e) => setCurrentTag(e.target.value)}
-                    onKeyPress={(e) => {
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         handleAddTag();
@@ -249,8 +274,12 @@ export default function CreateResource() {
                 Annuler
               </Button>
             </Link>
-            <Button type="submit" className="w-full sm:w-auto">
-              {isPublic ? 'Publier la ressource' : 'Enregistrer en privé'}
+            <Button type="submit" className="w-full sm:w-auto" disabled={createResource.isPending}>
+              {createResource.isPending
+                ? 'Envoi en cours...'
+                : isPublic
+                ? 'Publier la ressource'
+                : 'Enregistrer en privé'}
             </Button>
           </div>
         </form>

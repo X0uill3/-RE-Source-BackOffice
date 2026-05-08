@@ -1,5 +1,5 @@
 import { useNavigate, Link } from 'react-router';
-import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -10,17 +10,8 @@ import {
   BookOpen,
   TrendingUp,
   Eye,
-  MessageCircle,
   LogOut,
-  Edit,
 } from 'lucide-react';
-
-// 1. On supprime currentUser et logout des mockData
-import {
-  mockResources,
-  isFavorite,
-  type ResourceCategory,
-} from '../data/mockData';
 import { toast } from 'sonner';
 
 // 2. On importe notre vraie mémoire globale
@@ -72,28 +63,6 @@ export default function Dashboard() {
     );
   }
   
-  const getCategoryColor = (category: ResourceCategory) => {
-    const colors: Record<ResourceCategory, string> = {
-      famille: 'bg-pink-100 text-pink-700',
-      amis: 'bg-yellow-100 text-yellow-700',
-      collegues: 'bg-blue-100 text-blue-700',
-      voisins: 'bg-green-100 text-green-700',
-      communaute: 'bg-purple-100 text-purple-700',
-    };
-    return colors[category];
-  };
-
-  const getCategoryLabel = (category: ResourceCategory) => {
-    const labels: Record<ResourceCategory, string> = {
-      famille: 'Famille',
-      amis: 'Amis',
-      collegues: 'Collègues',
-      voisins: 'Voisins',
-      communaute: 'Communauté',
-    };
-    return labels[category];
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -238,40 +207,41 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {favoriteResources.map((resource: { id: Key | null | undefined; category: string; title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; views: { toLocaleString: () => string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }; commentsCount: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }) => (
-                      <div
-                        key={resource.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
-                      >
-                        <div className="flex-1 mb-3 sm:mb-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className={getCategoryColor(resource.category as ResourceCategory)}>
-                              {getCategoryLabel(resource.category as ResourceCategory)}
-                            </Badge>
+                    {favoriteResources.map((interaction: any) => {
+                      // L'API retourne des interactions avec la ressource dans le champ ressourceId
+                      const resource = interaction.ressourceId || interaction;
+                      const resourceId = resource._id || resource.id;
+                      return (
+                        <div
+                          key={interaction._id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
+                        >
+                          <div className="flex-1 mb-3 sm:mb-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline">
+                                {resource.categorie?.name || 'Ressource'}
+                              </Badge>
+                            </div>
+                            <Link to={`/ressource/${resourceId}`}>
+                              <h3 className="font-semibold hover:text-blue-600 transition-colors">
+                                {resource.title}
+                              </h3>
+                            </Link>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                              <span className="flex items-center gap-1">
+                                <Eye className="h-3 w-3" />
+                                {(resource.views || 0).toLocaleString()}
+                              </span>
+                            </div>
                           </div>
-                          <Link to={`/ressource/${resource.id}`}>
-                            <h3 className="font-semibold hover:text-blue-600 transition-colors">
-                              {resource.title}
-                            </h3>
+                          <Link to={`/ressource/${resourceId}`}>
+                            <Button size="sm" variant="outline">
+                              Voir
+                            </Button>
                           </Link>
-                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Eye className="h-3 w-3" />
-                              {resource.views.toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <MessageCircle className="h-3 w-3" />
-                              {resource.commentsCount}
-                            </span>
-                          </div>
                         </div>
-                        <Link to={`/ressource/${resource.id}`}>
-                          <Button size="sm" variant="outline">
-                            Voir
-                          </Button>
-                        </Link>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -297,17 +267,17 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {myContributions.map((resource: { id: Key | null | undefined; category: string; isPublic: any; title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; views: { toLocaleString: () => string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }; likes: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; commentsCount: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }) => (
+                    {myContributions.map((resource: any) => (
                       <div
-                        key={resource.id}
+                        key={resource._id}
                         className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-gray-200 rounded-lg"
                       >
                         <div className="flex-1 mb-3 sm:mb-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <Badge className={getCategoryColor(resource.category as ResourceCategory)}>
-                              {getCategoryLabel(resource.category as ResourceCategory)}
+                            <Badge variant="outline">
+                              {resource.categorie?.name || 'Ressource'}
                             </Badge>
-                            {resource.isPublic ? (
+                            {resource.visibility === 'Public' ? (
                               <Badge variant="outline">Public</Badge>
                             ) : (
                               <Badge variant="secondary">Privé</Badge>
@@ -317,24 +287,12 @@ export default function Dashboard() {
                           <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                             <span className="flex items-center gap-1">
                               <Eye className="h-3 w-3" />
-                              {resource.views.toLocaleString()} vues
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Heart className="h-3 w-3" />
-                              {resource.likes} J'aime
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <MessageCircle className="h-3 w-3" />
-                              {resource.commentsCount} commentaires
+                              {(resource.views || 0).toLocaleString()} vues
                             </span>
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
-                            <Edit className="h-4 w-4 mr-2" />
-                            Modifier
-                          </Button>
-                          <Link to={`/ressource/${resource.id}`}>
+                          <Link to={`/ressource/${resource._id}`}>
                             <Button size="sm">Voir</Button>
                           </Link>
                         </div>

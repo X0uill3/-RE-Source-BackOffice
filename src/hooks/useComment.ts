@@ -12,6 +12,17 @@ export const useComments = (resourceId: string) => {
     });
 };
 
+// Tous les commentaires (admin uniquement)
+export const useAllComments = () => {
+    return useQuery({
+        queryKey: ['comments', 'all'],
+        queryFn: async () => {
+            const response = await api.get('/comments/admin/comments');
+            return response.data.data.comments;
+        },
+    });
+};
+
 export const useAddComment = () => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -24,6 +35,19 @@ export const useAddComment = () => {
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['comments', variables.resourceId] });
+        },
+    });
+};
+
+export const useDeleteComment = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (commentId: string) => {
+            const response = await api.delete(`/comments/${commentId}`);
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['comments'] });
         },
     });
 };

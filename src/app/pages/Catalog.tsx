@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Search, Filter, Eye, Heart, MessageCircle } from 'lucide-react';
-import { mockResources, type ResourceCategory, type ResourceType } from '../data/mockData';
+import { type ResourceCategory, type ResourceType } from '../data/mockData';
 import { getCategoryColor } from '../../utils/categoryStyles';
 
 export default function Catalog() {

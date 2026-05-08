@@ -5,17 +5,20 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Users } from 'lucide-react';
-import { register } from '../data/mockData';
 import { toast } from 'sonner';
+import { useAuthStore } from '../../store/authStore';
 
 export default function Register() {
   const navigate = useNavigate();
-  const [name, setName] = useState('');
+  const [firstname, setFirstname] = useState('');
+  const [lastname, setLastname] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { register, isLoading } = useAuthStore();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
@@ -28,10 +31,13 @@ export default function Register() {
       return;
     }
 
-    const user = register(name, email, password);
-    toast.success(`Bienvenue, ${user.name} ! Votre compte a été créé.`);
-    navigate('/tableau-de-bord');
-    window.location.reload(); // Reload to update the header
+    try {
+      await register(firstname, lastname, email, password);
+      toast.success(`Bienvenue, ${firstname} ! Votre compte a été créé.`);
+      navigate('/tableau-de-bord');
+    } catch (error: any) {
+      toast.error(error.message);
+    }
   };
 
   return (
@@ -54,16 +60,29 @@ export default function Register() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nom complet</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Jean Dupont"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstname">Prénom</Label>
+                  <Input
+                    id="firstname"
+                    type="text"
+                    placeholder="Jean"
+                    value={firstname}
+                    onChange={(e) => setFirstname(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastname">Nom</Label>
+                  <Input
+                    id="lastname"
+                    type="text"
+                    placeholder="Dupont"
+                    value={lastname}
+                    onChange={(e) => setLastname(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -113,8 +132,8 @@ export default function Register() {
                 </ul>
               </div>
 
-              <Button type="submit" className="w-full">
-                Créer mon compte
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Création en cours...' : 'Créer mon compte'}
               </Button>
             </form>
 
