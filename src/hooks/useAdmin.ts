@@ -5,10 +5,12 @@ export const usePendingResources = () => {
     return useQuery({
         queryKey: ['pending-resources'],
         queryFn: async () => {
-            const response = await api.get('/resources/admin/all');
-            const all = response.data.data.resources || [];
-            return all.filter((r: any) => r.systemStatus === 'Disabled');
+            const response = await api.get('/resources/admin/all', {
+                params: { systemStatus: 'Disabled' }
+            });
+            return response.data.data.resources || [];
         },
+        refetchOnWindowFocus: true, 
     });
 };
 
@@ -47,6 +49,17 @@ export const useDeleteUser = () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
         },
     });
+};
+
+export const useReactivateUser = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => 
+      api.patch(`/users/${userId}/reactivate`), // Votre route backend
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
 };
 
 // Rejeter = supprimer le commentaire (pas d'endpoint de modération dans le backend)

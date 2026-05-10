@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -23,13 +23,23 @@ import {
   Eye,
   CheckCircle,
   Clock,
+  UserCheck,
+  UserX,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '../../store/authStore';
 import { useAllResources } from '../../hooks/useRessource';
 import { useAllComments } from '../../hooks/useComment';
-import { useUsers, useDeleteUser, useDeleteComment, useToggleResourceVisibility, usePendingResources, useValidateResource } from '../../hooks/useAdmin';
+import { 
+  useUsers, 
+  useDeleteUser, 
+  useDeleteComment, 
+  useToggleResourceVisibility, 
+  usePendingResources, 
+  useValidateResource,
+  useReactivateUser 
+} from '../../hooks/useAdmin';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -43,6 +53,7 @@ export default function AdminPanel() {
   const { data: pendingResources = [], isLoading: isLoadingPending } = usePendingResources();
 
   const deleteUser = useDeleteUser();
+  const reactivateUser = useReactivateUser();
   const deleteComment = useDeleteComment();
   const toggleVisibility = useToggleResourceVisibility();
   const validateResource = useValidateResource();
@@ -90,8 +101,15 @@ export default function AdminPanel() {
 
   const handleDeleteUser = (userId: string) => {
     deleteUser.mutate(userId, {
-      onSuccess: () => toast.success('Utilisateur supprimé'),
-      onError: () => toast.error('Erreur lors de la suppression'),
+      onSuccess: () => toast.success('Le compte a été désactivé'),
+      onError: () => toast.error('Erreur lors de la désactivation'),
+    });
+  };
+
+  const handleReactivateUser = (userId: string) => {
+    reactivateUser.mutate(userId, {
+      onSuccess: () => toast.success('Le compte a été réactivé'),
+      onError: () => toast.error('Erreur lors de la réactivation'),
     });
   };
 
@@ -117,9 +135,11 @@ export default function AdminPanel() {
             <h1 className="text-3xl md:text-4xl font-bold">Panel d'administration</h1>
           </div>
           <p className="text-gray-600">Modération des contenus et gestion des utilisateurs</p>
-          <Badge variant="outline" className="mt-2">
-            {user.role === 'ADMIN' ? 'Administrateur' : 'Modérateur'}
-          </Badge>
+          <div className="flex gap-2 mt-2">
+            <Badge variant="outline">
+                {user.role === 'ADMIN' ? 'Administrateur' : 'Modérateur'}
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -372,7 +392,7 @@ export default function AdminPanel() {
                                 onClick={() => handleToggleResource(resource._id, resource.visibility)}
                                 disabled={toggleVisibility.isPending}
                               >
-                                {resource.visibility === 'Public' ? 'Dépublier' : 'Publier'}
+                                {resource.visibility === 'Public' ? 'Supprimer' : 'Publier'}
                               </Button>
                             </div>
                           </TableCell>
@@ -409,6 +429,7 @@ export default function AdminPanel() {
                       <TableRow>
                         <TableHead>Nom</TableHead>
                         <TableHead>Email</TableHead>
+                        <TableHead>Statut</TableHead>
                         <TableHead>Rôle</TableHead>
                         <TableHead>Inscription</TableHead>
                         <TableHead>Actions</TableHead>
@@ -416,11 +437,16 @@ export default function AdminPanel() {
                     </TableHeader>
                     <TableBody>
                       {filteredUsers.map((u: any) => (
-                        <TableRow key={u._id}>
+                        <TableRow key={u._id} className={u.systemStatus === 'Disabled' ? 'opacity-60 bg-gray-50' : ''}>
                           <TableCell className="font-medium">
                             {u.firstname} {u.lastname}
                           </TableCell>
                           <TableCell>{u.email}</TableCell>
+                          <TableCell>
+                             <Badge variant={u.systemStatus === 'Enabled' ? 'outline' : 'secondary'}>
+                                {u.systemStatus === 'Enabled' ? 'Actif' : 'Désactivé'}
+                             </Badge>
+                          </TableCell>
                           <TableCell>
                             <Badge
                               variant={
@@ -443,14 +469,28 @@ export default function AdminPanel() {
                           </TableCell>
                           <TableCell>
                             {user.role === 'ADMIN' && u._id !== user._id && (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDeleteUser(u._id)}
-                                disabled={deleteUser.isPending}
-                              >
-                                Supprimer
-                              </Button>
+                              u.systemStatus === 'Disabled' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-600 border-green-600 hover:bg-green-50"
+                                  onClick={() => handleReactivateUser(u._id)}
+                                  disabled={reactivateUser.isPending}
+                                >
+                                  <UserCheck className="h-4 w-4 mr-2" />
+                                  Réactiver
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeleteUser(u._id)}
+                                  disabled={deleteUser.isPending}
+                                >
+                                  <UserX className="h-4 w-4 mr-2" />
+                                  Désactiver
+                                </Button>
+                              )
                             )}
                           </TableCell>
                         </TableRow>
