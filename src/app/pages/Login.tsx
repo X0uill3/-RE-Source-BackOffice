@@ -84,27 +84,6 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm font-semibold mb-2">Comptes de démonstration :</p>
-              <div className="space-y-2 text-xs">
-                <div>
-                  <p className="font-medium">Citoyen :</p>
-                  <p className="text-gray-600">marie.dupont@example.fr</p>
-                </div>
-                <div>
-                  <p className="font-medium">Modérateur :</p>
-                  <p className="text-gray-600">jean.martin@example.fr</p>
-                </div>
-                <div>
-                  <p className="font-medium">Admin :</p>
-                  <p className="text-gray-600">sophie.bernard@example.fr</p>
-                </div>
-                <p className="text-gray-500 italic mt-2">
-                  Mot de passe : n'importe quelle valeur
-                </p>
-              </div>
-            </div>
-
             <div className="mt-6 text-center text-sm">
               <span className="text-gray-600">Vous n'avez pas de compte ? </span>
               <Link to="/inscription" className="text-blue-600 hover:underline font-medium">
