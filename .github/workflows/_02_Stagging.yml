@@ -1,0 +1,20 @@
+name: 02 - Staging
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  Build_Push_Docker:
+    uses: ./.github/workflows/02-1_DockerBuild.yml
+    secrets:
+      PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+    with:
+      docker-mode: canary
+
+  Trivy_Scan:
+    needs: [Build_Push_Docker]
+    uses: ./.github/workflows/02-2_Trivy.yml
+    secrets:
+      PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
