@@ -1,0 +1,17 @@
+name: 03 - Production
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  # -- PR vers main ou merge sur main : build + publication de l'image de production --
+  # (le déploiement lui-même est orchestré depuis le repo backend, qui pull cette image)
+  DockerBuild_Prod:
+    uses: ./.github/workflows/03-1_DockerBuildProd.yml
+    secrets:
+      PAT_TOKEN: ${{ secrets.PAT_TOKEN }}

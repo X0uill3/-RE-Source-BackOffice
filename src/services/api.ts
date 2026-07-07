@@ -1,7 +1,12 @@
 import axios from 'axios';
 
-// On pointe directement vers ton Back-End Node.js
-const BASE_URL = 'http://localhost:5000/api'; 
+// En dev local : le backend tourne sur localhost:5000.
+// En staging/prod : le frontend est servi par le même hôte que le backend
+// (voir docker-compose.yml), et l'IP de la VM change à chaque déploiement
+// Bicep — on la déduit donc de l'URL courante plutôt que de la figer au build.
+const BASE_URL =
+    import.meta.env.VITE_API_URL ||
+    `${window.location.protocol}//${window.location.hostname}:5000/api`;
 
 const api = axios.create({
     baseURL: BASE_URL,
