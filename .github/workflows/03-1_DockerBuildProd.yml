@@ -1,12 +1,7 @@
-name: 02-1 - Staging - Docker Build
+name: 03-1 - Production - Docker Build
 
 on:
   workflow_call:
-    inputs:
-      docker-mode:
-        required: false
-        type: string
-        default: "canary"
     secrets:
       PAT_TOKEN:
         required: true
@@ -16,7 +11,7 @@ env:
   USERNAME: ${{github.actor}}
 
 jobs:
-  Build-Push-Docker:
+  Build-Push-Docker-Prod:
     runs-on: ubuntu-latest
 
     steps:
@@ -33,9 +28,9 @@ jobs:
       - name: Downcase Image Name
         run: echo "IMAGE_NAME_LOWER=$(echo ${GITHUB_REPOSITORY,,} | sed 's|/-|/|g')" >> $GITHUB_ENV
 
-      - name: Build and Push Docker Image
+      - name: Build and Push Production Image
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           push: true
-          tags: ${{env.REGISTRY}}/${{env.IMAGE_NAME_LOWER}}:${{inputs.docker-mode}}
+          tags: ${{env.REGISTRY}}/${{env.IMAGE_NAME_LOWER}}:prod

@@ -8,11 +8,13 @@ on:
 jobs:
   Build_Push_Docker:
     uses: ./.github/workflows/02-1_DockerBuild.yml
-    secrets: inherit
+    secrets:
+      PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
     with:
       docker-mode: canary
 
   Trivy_Scan:
     needs: [Build_Push_Docker]
     uses: ./.github/workflows/02-2_Trivy.yml
-    secrets: inherit
+    secrets:
+      PAT_TOKEN: ${{ secrets.PAT_TOKEN }}

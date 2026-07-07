@@ -3,10 +3,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ARG MODE=""
-RUN npm run build${MODE}
+RUN npm run build
 
-FROM nginx:alpine
+FROM nginx:1.27-alpine
+RUN apk update && apk upgrade --no-cache
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY ./nginx/nginx.conf /etc/nginx/conf.d/default.conf
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
